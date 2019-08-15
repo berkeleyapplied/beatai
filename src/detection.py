@@ -10,7 +10,7 @@ import math
 from annotations import getAnnotations
 import sys
 
-state = 1  # Running is Default
+state = 0  # Running is Default
 beatreq=0
 
 def update(S, pk, c, n):
@@ -154,7 +154,7 @@ def run_datafile(dbfile, annfile=None, datafile=False, filter=10.0):
         #(S2, pk2, c2) = D2  # TODO: Sync both signals
 
 
-        S1F = removeBaseline(S1)
+        S1F = removeBaseline(S1, highcut=filter)
 
         # f2 = plt.figure()
         # plt.plot(S1,'k')
