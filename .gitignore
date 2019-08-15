@@ -1,0 +1,5 @@
+.DS_Store
+**/beatenv
+**/data
+**/.idea
+**/src/__pycache__/
