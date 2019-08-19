@@ -9,9 +9,11 @@ from scipy.interpolate import interp1d, interp2d
 import math
 from annotations import getAnnotations
 import sys
+from mpl_toolkits.mplot3d import Axes3D
 
 state = 0  # Running is Default
 beatreq=0
+annreq=''
 
 def update(S, pk, c, n):
     if n > 1 and n < len(pk) - 2:
@@ -26,12 +28,27 @@ def update(S, pk, c, n):
     return []
 
 
-def rescale(S1F, pk1, n1):
+def ewma(s, k):
+    sout = [s[0]]
+    curr = s[0]
+    for n in range(1,len(s)):
+        curr += (s[n] - curr)  / k
+        sout.append(curr)
+    return np.array(sout)
 
-    s = S1F[pk1[n1-1]:pk1[n1+1]]
+
+
+def rescale(S1F, pk1, n1, scaleLength=256):
+
+    s = S1F[pk1[n1-1]:pk1[n1+1]+1]
     s = s/S1F[pk1[n1]]
-    xi = np.linspace(0,len(s),1024)
-    return np.interp(xi, np.arange(len(s)),s)
+    xi1 = np.linspace(0, pk1[n1]-pk1[n1-1]-1, int(scaleLength/2))
+    xi2 = np.linspace(pk1[n1]-pk1[n1-1], len(s), int(scaleLength/2))
+
+    s1 = np.interp(xi1, np.arange(len(s)), s)
+    s2 = np.interp(xi2, np.arange(len(s)), s)
+
+    return np.concatenate((s1,s2))
 
 
 def figure_close(evt):
@@ -41,6 +58,7 @@ def figure_close(evt):
 def key_press(event):
     global state
     global beatreq
+    global annreq
 
     sys.stdout.flush()
 
@@ -72,6 +90,13 @@ def key_press(event):
         except:
             print('ERROR converting {} to integer beat number'.format(bstr))
 
+    if event.key == 'a':
+        bstr = input('Enter Annotation: ')
+        if len(bstr) == 1:
+            ann = 'NV.LRAaJSFO!ejEPfpQ'
+            if bstr in ann:
+                annreq = bstr
+                state = 4
 
     # if event.key == 'x':
     #     visible = xl.get_visible()
@@ -112,6 +137,7 @@ def run_datafile(dbfile, annfile=None, datafile=False, filter=10.0):
 
     global state
     global beatreq
+    global annreq
 
     if annfile is not None:
         annData = getAnnotations(annfile)
@@ -130,16 +156,18 @@ def run_datafile(dbfile, annfile=None, datafile=False, filter=10.0):
     fig.canvas.mpl_connect('close_event', figure_close)
     fig.canvas.mpl_connect('key_press_event', key_press)
 
-    ax0 = plt.subplot2grid((6,1),(0,0))
-    ax1 = plt.subplot2grid((6,1),(1,0))
-    ax2 = plt.subplot2grid((6,1),(2,0))
-    ax3 = plt.subplot2grid((6,1),(3,0),rowspan=3)
+    ax0 = plt.subplot2grid((3,4),(0,0),colspan=4)
+    ax1 = plt.subplot2grid((3,4),(1,0),colspan=2)
+    ax2 = plt.subplot2grid((3,4),(2,0),colspan=2)
+    ax3 = plt.subplot2grid((3,4),(1,2),rowspan=2, colspan=2)
+    # ax4 = plt.subplot2grid((6,3),(3,1),rowspan=3)
+    # ax5 = plt.subplot2grid((6,3),(3,2),rowspan=3)
 
     batchNum = 0
     traceCounter = 0
     ctr = 0
     resetCounter = 200
-
+    interpRange = 1024
 
     while(True):
 
@@ -156,12 +184,6 @@ def run_datafile(dbfile, annfile=None, datafile=False, filter=10.0):
 
         S1F = removeBaseline(S1, highcut=filter)
 
-        # f2 = plt.figure()
-        # plt.plot(S1,'k')
-        # plt.plot(SLP,'c')
-        # plt.plot(pk1[c1==1], S1[pk1[c1==1]], 'g.')
-        # plt.plot(pk1[c1==0], S1[pk1[c1==0]], 'r.')
-        # plt.show()
 
         # Doing S1 for now
 
@@ -175,15 +197,16 @@ def run_datafile(dbfile, annfile=None, datafile=False, filter=10.0):
                 resetCounter -= 1
 
             # s = update(S1, pk1, c1, n1)
-            s = rescale(S1F, pk1, n1)
+            s = rescale(S1F, pk1, n1, scaleLength=interpRange)
 
 
             if(len(s) > 0):
                 traceCounter += 1
             ctr+=1
 
-            x = range(1024)
-            if len(s) == 1024:
+            x = range(interpRange)
+
+            if len(s) == interpRange:
 
                 xa = hilbert(s)
 
@@ -193,8 +216,6 @@ def run_datafile(dbfile, annfile=None, datafile=False, filter=10.0):
                 si = butter_lowpass_filter(xa.imag, corner_freq, fs, order=4)
                 sr = butter_lowpass_filter(xa.real, corner_freq, fs, order=4)
 
-                # si = savgol_filter(xa.imag, 31, 3)
-                # sr = savgol_filter(xa.real,31, 3)
 
                 ax0.cla()
                 ind = np.arange(pk1[n1]-1000,pk1[n1]+1000)
@@ -214,27 +235,64 @@ def run_datafile(dbfile, annfile=None, datafile=False, filter=10.0):
                     ax0.set_ylim(ylim[0],ylim[1]+100)
 
 
-                ax1.cla()
-                ax2.cla()
-                ax1.plot(x,s,'k')
-                ax2.plot(x,sr,'k')
-                ax2.plot(x,si,'r')
+                dsi = si[1:] - si[:-1]
+                dsr = sr[1:] - sr[:-1]
+                ds = np.sqrt(np.power(dsi, 2.0) + np.power(dsr, 2.0))
+                ds = np.insert(ds, 0, 0.0)
 
 
-                sr = sr[512-256:512+255]
-                si = si[512-256:512+255]
+                amp = np.sqrt(np.power(sr,2.0)+np.power(si,2.0))
+                # Phasor Angular Speed
+                sr_n = sr / amp
+                si_n = si / amp
+                dsi_n = si_n[1:] - si_n[:-1]
+                dsr_n = sr_n[1:] - sr_n[:-1]
+                ds_n = np.sqrt(np.power(dsi_n, 2.0) + np.power(dsr_n, 2.0))
+                ds_n = np.insert(ds_n, 0, 0.0)
+                # ax2.plot(dsr,'b')
+                # ax2.plot(dsi,'r')
+                # ax2.plot(ds,'k')
+
+
+                # ax2.plot(x,sr,'k')
+                # ax2.plot(x,si,'r')
+
+
+                midpt = interpRange/2
+                rangeInd = np.arange(midpt-midpt/2,midpt+midpt/2).astype(int)
+
+                # sr = sr[rangeInd]
+                # si = si[rangeInd]
+                # ds = ds[rangeInd]
+
+                # sr = sr[512-256:512+255]
+                # si = si[512-256:512+255]
+                # ds = ds[512-256:512+255]
 
                 xc = np.arange(len(sr))
-                xint = np.linspace(0.01,len(sr)-1.01,2500)
+                xint = np.linspace(0.01, len(sr)-1.01, 2000)
+
                 fr = interp1d(xc, sr, kind='cubic')
                 fi = interp1d(xc, si, kind='cubic')
+                fds = interp1d(xc, ds, kind='cubic')
 
                 sr = fr(xint)
                 si = fi(xint)
 
+                ax1.cla()
+                ax2.cla()
+                ax1.plot(sr, 'k')
+                ax2.plot(si, 'r')
+                ax1.grid(True)
+                ax2.grid(True)
+
+
                 ax3.cla()
                 ax3.plot(sr,si,'r.')
                 ax3.axis('equal')
+                ax3.grid(True)
+
+
 
             if state == 0:
                 n1 += -1
@@ -250,6 +308,25 @@ def run_datafile(dbfile, annfile=None, datafile=False, filter=10.0):
                 n1 = beatreq-1
                 state = 0
 
+            if state == 4:
+                if annData is not None:
+                    found = False
+                    for i in range(len(asym)):
+                        if asym[i] == annreq and asamp[i] > pk1[n1+1]:
+                            dsamp = np.abs(pk1 - asamp[i])
+                            indpk = np.arange(len(pk1))
+                            n1 = indpk[dsamp==min(dsamp)][0]
+                            print('Annotation found: {}'.format(n1))
+                            found=True
+                            break
+                    if not found:
+                        print('{} not found starting from beat {}'.format(annreq, n1))
+                else:
+                    print('ERROR: Annotation data not loaded!')
+                state=0
+                n1 += -1
+
+
             plt.pause(0.01)
 
         batchNum+=1
@@ -259,15 +336,16 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--input', required=True, help='input db file')
     parser.add_argument('-f', '--filterlowpass', type=float, required=False, default=10.0, help='Filter Low Pass Hz')
-    parser.add_argument('-a', '--annotationfile', required=False, default=None, help='Annotation File')
-    parser.add_argument('--datafile', action='store_true')
-
-
-
+    parser.add_argument('-d','--directory', required=True, help='data directory')
+    parser.add_argument('-n', '--dataset', required=True, help='dataset number')
     args = parser.parse_args()
-    run_datafile(args.input, datafile=args.datafile, annfile=args.annotationfile, filter=args.filterlowpass)
+
+
+    datafile = args.directory + '/' + args.dataset + '.dat'
+    afile = args.directory + '/' + args.dataset + '.atr'
+
+    run_datafile(datafile, annfile=afile, filter=args.filterlowpass, datafile=True)
 
 
 
