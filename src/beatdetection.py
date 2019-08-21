@@ -1,4 +1,5 @@
 from scipy.signal import butter, filtfilt, lfilter
+import matplotlib.pyplot as plt
 import numpy as np
 
 def findPeakLocations(S):
@@ -138,7 +139,13 @@ def findPeakLocations(S):
 
     for x in range(len(qrsPeaks)):
         win = S[(qrsPeaks[x] - window):qrsPeaks[x]]
-        tmp_max_ind = np.argmax(win)
+        winFilt = filterSig[(qrsPeaks[x] - window):qrsPeaks[x]]
+        filtMax = max(winFilt)
+        filtMin = min(winFilt)
+        if filtMax > abs(filtMin):
+            tmp_max_ind = np.argmax(win)
+        else:
+            tmp_max_ind = np.argmin(win)
         qrsPeaks[x] = (qrsPeaks[x] - window) + tmp_max_ind
 
     for x in range(len(noisePeaks)):
@@ -147,5 +154,13 @@ def findPeakLocations(S):
         noisePeaks[x] = (noisePeaks[x] - window) + tmp_max_ind
 
     ###################################################################
+    print('Called BeatDetection')
+    fig, ax = plt.subplots(figsize=(12, 6))
+    plt.plot(S)
+    plt.plot(filterSig)
+    plt.plot(qrsPeaks, S[qrsPeaks], "o", color='lime')
+    plt.show()
+
+
 
     return qrsPeaks

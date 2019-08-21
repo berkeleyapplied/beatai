@@ -231,7 +231,8 @@ def run_datafile(dbfile, annfile=None, datafile=False, filter=10.0):
 
                 sr = fr(xint)
                 si = fi(xint)
-
+                #print(list(sr))
+                #print(list(si))
                 ax3.cla()
                 ax3.plot(sr,si,'r.')
                 ax3.axis('equal')
