@@ -9,6 +9,8 @@ from scipy.interpolate import interp1d, interp2d
 import math
 from annotations import getAnnotations
 import sys
+from tslearn.clustering import TimeSeriesKMeans
+from tslearn.utils import to_time_series_dataset
 
 from detection import update, rescale, butter_bandpass_filter, butter_lowpass_filter, removeBaseline
 
@@ -44,8 +46,7 @@ def generateRRInterval(infile, datafile=True):
     return RR
 
 
-
-def generateSignalMatrix(infile, datafile=True, filter=10.0):
+def generateSignalMatrix(infile, pk=None, datafile=True, filter=10.0):
 
     fs = 360
     corner_freq = filter
@@ -57,63 +58,105 @@ def generateSignalMatrix(infile, datafile=True, filter=10.0):
     resetCounter = 200
     interpRange = 1024
 
-    SR = []
-    SI = []
+    SR1 = []
+    SI1 = []
 
-    while(True):
 
-        D1, D2 = retrieveBatch(infile, BATCH_NUM, srec, datafile)
-        srec += BATCH_NUM
+    D1, D2 = retrieveBatch(infile, None, None, datafile)
+    srec += BATCH_NUM
 
-        if type(D1) == type(None):
+    (S1, pk1, c1) = D1
+
+    if pk is not None:
+        pk1 = pk
+
+    S1F = removeBaseline(S1, highcut=filter)
+
+    n1 = 0
+    while True:
+        n1 += 1
+
+        if n1 > len(pk1)-2:
             break
 
-        (S1, pk1, c1) = D1
-        S1F = removeBaseline(S1, highcut=filter)
+        if resetCounter > 0:
+            resetCounter -= 1
 
-        n1 = 0
+        s = rescale(S1F, pk1, n1, scaleLength=interpRange)
 
-        while True:
-            n1 += 1
+        if len(s) == interpRange:
 
-            if n1 > len(pk1)-2:
-                break
+            xa = hilbert(s)
 
-            if resetCounter > 0:
-                resetCounter -= 1
+            si = butter_lowpass_filter(xa.imag, corner_freq, fs, order=4)
+            sr = butter_lowpass_filter(xa.real, corner_freq, fs, order=4)
 
-            s = rescale(S1F, pk1, n1, scaleLength=interpRange)
+            xc = np.arange(len(sr))
+            xint = np.linspace(0.01, len(sr)-1.01, 2000)
 
-            if len(s) == interpRange:
+            fr = interp1d(xc, sr, kind='cubic')
+            fi = interp1d(xc, si, kind='cubic')
 
-                xa = hilbert(s)
+            sr = fr(xint)
+            si = fi(xint)
 
-                si = butter_lowpass_filter(xa.imag, corner_freq, fs, order=4)
-                sr = butter_lowpass_filter(xa.real, corner_freq, fs, order=4)
+            SR1.append(sr[500:1500])
+            SI1.append(si[500:1500])
 
-                xc = np.arange(len(sr))
-                xint = np.linspace(0.01, len(sr)-1.01, 2000)
+    return np.array(SR1), np.array(SI1), np.array(pk1[1:-1])
 
-                fr = interp1d(xc, sr, kind='cubic')
-                fi = interp1d(xc, si, kind='cubic')
+def convertSignalMatrixToDataset(sr, si):
 
-                sr = fr(xint)
-                si = fi(xint)
+    M = []
+    for i in range(len(sr)):
+        M.append(list(sr[i])+list(si[i]))
+    return to_time_series_dataset(M)
 
-                SR.append(sr)
-                SI.append(si)
+def signalMahobolisDistance(S, n):
 
-        batchNum+=1
+    D = []
+    for s in S:
+        ds = s - S[n]
+        mdist = np.sqrt(np.sum(np.power(ds,2.0)))
+        D.append(mdist)
+    return D
 
-    return np.array(SR), np.array(SI)
+def signalDistance(S, n):
+
+    D = []
+    for s in S:
+        ds = s-S[n]
+        mdist = np.sum(np.abs(ds))
+        D.append(mdist)
+    return D
+
+
+def clusterSignalData(datfile, clusterNum,filter=12.0, verbose=False, plotflag=False):
+
+    sr, si, pk = generateSignalMatrix(datfile, filter=filter)
+    dset = convertSignalMatrixToDataset(sr,si)
+
+    ncluster = clusterNum
+
+
+    km = TimeSeriesKMeans(n_clusters=ncluster, metric="softdtw", verbose=False)
+    res = km.fit(dset)
+    cls = res.predict(dset)
+
+    ind = {}
+    for i in range(ncluster):
+        ind[i] = np.where(cls==i)[0]
+
+    if verbose:
+        print('Signal Clustering Report')
+        print('NPeaks: {}'.format(len(pk)))
+        print('NClusters: {}'.format(len(ind)))
+        for i in ind:
+            print('Cluster {}: {}'.format(i, len(ind[i])))
 
 
 
-
-
-
-
-
+    return sr, si, pk, cls, ind, res
 
 # if __name__ == '__main__':
 #     import argparse

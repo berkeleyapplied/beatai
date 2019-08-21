@@ -41,7 +41,11 @@ def ewma(s, k):
 def rescale(S1F, pk1, n1, scaleLength=256):
 
     s = S1F[pk1[n1-1]:pk1[n1+1]+1]
-    s = s/S1F[pk1[n1]]
+    if s/S1F[pk1[n1]] > 0:
+        s = s/S1F[pk1[n1]]
+    else:
+        s = -1.0*s/S1F[pk1[n1]]
+
     xi1 = np.linspace(0, pk1[n1]-pk1[n1-1]-1, int(scaleLength/2))
     xi2 = np.linspace(pk1[n1]-pk1[n1-1], len(s), int(scaleLength/2))
 
@@ -132,6 +136,12 @@ def removeBaseline(s, lowcut=0.5, highcut=10.0, fs=250):
      return butter_bandpass_filter(s, lowcut, highcut, fs)
 
 
+def hat_response(x, sig):
+    pdf = 2.0*np.exp(-1.0 * np.power(x, 2.0) / (2 * sig ** 2.0))
+    pdf = pdf - np.exp(-1.0 * np.power(x-sig, 2.0) / (2 * sig ** 2.0))
+    pdf = pdf - np.exp(-1.0 * np.power(x+sig, 2.0) / (2 * sig ** 2.0))
+    pdf = pdf/np.sum(np.abs(pdf))
+    return pdf
 
 def run_datafile(dbfile, annfile=None, datafile=False, filter=10.0):
 

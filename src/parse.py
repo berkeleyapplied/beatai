@@ -126,6 +126,7 @@ def parse212File(fname, nrec=None, srec=None):
 
     S1 = np.array(S1)
     S2 = np.array(S2)
+    plt.show()
 
     return S1,S2
 
