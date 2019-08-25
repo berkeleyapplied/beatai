@@ -71,12 +71,12 @@ def generateSignalMatrix(infile, pk=None, datafile=True, filter=10.0):
         pk1 = pk
 
     S1F = removeBaseline(S1, highcut=filter)
-
+    pk_out = []
     n1 = 0
     while True:
         n1 += 1
 
-        if n1 > len(pk1)-2:
+        if n1 >= len(pk1)-1:
             break
 
         if resetCounter > 0:
@@ -103,7 +103,9 @@ def generateSignalMatrix(infile, pk=None, datafile=True, filter=10.0):
             SR1.append(sr[500:1500])
             SI1.append(si[500:1500])
 
-    return np.array(SR1), np.array(SI1), np.array(pk1[1:-1])
+            pk_out.append(pk[n1])
+
+    return np.array(SR1), np.array(SI1), np.array(pk_out)
 
 def convertSignalMatrixToDataset(sr, si):
 

@@ -40,7 +40,7 @@ def ewma(s, k):
 
 def rescale(S1F, pk1, n1, scaleLength=256):
 
-    s = S1F[pk1[n1-1]:pk1[n1+1]+1]
+    s = S1F[pk1[n1-1]:pk1[n1+1]]
     if S1F[pk1[n1]] > 0:
         s = s/S1F[pk1[n1]]
     else:
