@@ -334,7 +334,9 @@ def plot_community_symbols(root, datan, cls, pk1, nclass=None, srange=None):
     nclr = 0
     for k in cls:
         if nclass is not None:
-            if k != nclass:
+            if type(nclass) == int:
+                nclass = [nclass]
+            if not k in nclass:
                 continue
         ind = cls[k]
         pk = np.intersect1d(pk1[ind],sind)

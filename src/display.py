@@ -16,3 +16,8 @@ def plot_class_envelope(dfile, clsnum, nstd=1.0, clr='k',traces=True,alpha=0.2):
     root, datan, bd, filter, nstd, depth, beat_range, dset, G, cls, part, pk1 = load_data(dfile)
     plot_community_envelope(dset, cls, clsnum, nstd=nstd, clr=clr, traces=traces, alpha=alpha)
 
+
+def write_gexf_file(dfile, ofile):
+    root, datan, bd, filter, nstd, depth, beat_range, dset, G, cls, part, pk1 = load_data(dfile)
+    nx.write_gexf(G,ofile)
+
